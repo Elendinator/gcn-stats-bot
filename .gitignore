@@ -205,3 +205,9 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# --- SENSITIVE FILES (NICHT HOCHLADEN!) ---
+credentials.json
+google-credentials.json
+token.json
+.env
