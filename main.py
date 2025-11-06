@@ -17,6 +17,9 @@ scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/au
 import os, json
 from oauth2client.service_account import ServiceAccountCredentials
 
+print("🚀 DEBUG: DISCORD_TOKEN gefunden:", bool(TOKEN))
+print("🚀 DEBUG: GOOGLE_CREDS vorhanden:", bool(os.getenv("GOOGLE_CREDS")))
+print("🚀 DEBUG: Länge GOOGLE_CREDS:", len(os.getenv("GOOGLE_CREDS") or "0"))
 google_creds = json.loads(os.getenv("GOOGLE_CREDS"))
 creds = ServiceAccountCredentials.from_json_keyfile_dict(google_creds, scope)
 client = gspread.authorize(creds)
