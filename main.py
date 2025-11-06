@@ -119,4 +119,120 @@ async def match(ctx):
 async def on_ready():
     print(f"Bot ist online als {bot.user}")
 
+import discord
+from discord.ext import commands
+import aiohttp
+from bs4 import BeautifulSoup
+import datetime
+
+# Admin Rollen
+ADMIN_ROLES = [1433041166135201882, 1433041166135201887]
+
+@bot.command(name="stats")
+@commands.has_any_role(*ADMIN_ROLES)
+async def fetch_stats(ctx):
+    await ctx.send("📎 Bitte sende den Link zur Spielstatistik (z. B. `https://stats.hll-pnx.de/games/560`)")
+
+    def check_link(m):
+        return m.author == ctx.author and m.channel == ctx.channel and "https://stats.hll-pnx.de/games/" in m.content
+
+    try:
+        msg = await bot.wait_for("message", check=check_link, timeout=120)
+        match_url = msg.content.strip()
+    except:
+        return await ctx.send("❌ Zeit abgelaufen. Bitte gib den Befehl erneut ein.")
+
+    await ctx.send("🎨 Welche Farbe hatte euer Team? (rot oder blau)")
+
+    def check_color(m):
+        return m.author == ctx.author and m.channel == ctx.channel and m.content.lower() in ["rot", "blau"]
+
+    try:
+        color_msg = await bot.wait_for("message", check=check_color, timeout=60)
+        team_color = color_msg.content.lower()
+    except:
+        return await ctx.send("❌ Keine Farbe angegeben. Bitte versuche es erneut.")
+
+    await ctx.send("🔄 Verarbeite Matchdaten...")
+
+    async with aiohttp.ClientSession() as session:
+        async with session.get(match_url) as resp:
+            html = await resp.text()
+
+    soup = BeautifulSoup(html, "html.parser")
+
+    # 🧩 Grunddaten ermitteln
+    try:
+        match_id = match_url.split("/")[-1]
+        teams = [t.text.strip() for t in soup.select(".team-name")]
+        winner = soup.select_one(".winner-team").text.strip() if soup.select_one(".winner-team") else "Unbekannt"
+        duration = soup.select_one(".match-duration").text.strip() if soup.select_one(".match-duration") else "Unbekannt"
+    except Exception as e:
+        return await ctx.send(f"❌ Fehler beim Auslesen der Matchdaten: {e}")
+
+    # 🧩 Teamtabellen auslesen
+    tables = soup.select("table")
+    team_table = tables[0] if team_color == "blau" else tables[1]
+    rows = team_table.select("tr")[1:]
+
+    data_to_write = []
+    for row in rows:
+        cols = [c.text.strip() for c in row.select("td")]
+        if len(cols) < 6:
+            continue
+        player = cols[0]
+        kills = cols[1]
+        deaths = cols[2]
+        kd = cols[3]
+        killstreak = cols[4]
+        data_to_write.append([
+            datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            match_id,
+            teams[0] if team_color == "blau" else teams[1],
+            team_color,
+            teams[1] if team_color == "blau" else teams[0],
+            winner,
+            duration,
+            player,
+            kills,
+            deaths,
+            kd,
+            killstreak,
+            match_url
+        ])
+
+    # 🧾 In Google Sheet schreiben
+    try:
+        sheet.append_rows(data_to_write, value_input_option="RAW")
+        await ctx.send(f"✅ {len(data_to_write)} Spielerstatistiken erfolgreich in **GCN_Stats** gespeichert!")
+    except Exception as e:
+        return await ctx.send(f"❌ Fehler beim Schreiben in Google Sheets: {e}")
+
+    # 🏆 Embed erstellen
+    sorted_players = sorted(data_to_write, key=lambda x: int(x[8]) if x[8].isdigit() else 0, reverse=True)
+    top3 = sorted_players[:3]
+    top3_text = "\n".join([
+        f"**{i+1}. {p[7]}** — {p[8]} K / {p[9]} D (KD {p[10]}, Serie {p[11]})"
+        for i, p in enumerate(top3)
+    ])
+
+    embed = discord.Embed(
+        title=f"📊 Match-Auswertung #{match_id}",
+        description=f"🏆 **Gewinner:** {winner}\n🕓 **Dauer:** {duration}\n🎨 **Teamfarbe:** {team_color.capitalize()}",
+        color=discord.Color.blue() if team_color == "blau" else discord.Color.red()
+    )
+    embed.add_field(name="Top 3 Spieler", value=top3_text, inline=False)
+    embed.add_field(name="🔗 Vollständige Statistik", value=f"[Zur Website]({match_url})", inline=False)
+    embed.set_footer(text=f"Erstellt am {datetime.datetime.now().strftime('%d.%m.%Y %H:%M:%S')}")
+
+    await ctx.send(embed=embed)
+
+@fetch_stats.error
+async def stats_error(ctx, error):
+    if isinstance(error, commands.MissingAnyRole):
+        await ctx.send("❌ Du hast keine Berechtigung, diesen Befehl zu verwenden.")
+    else:
+        await ctx.send(f"❌ Fehler: {error}")
+
+
 bot.run(TOKEN)
