@@ -12,7 +12,7 @@ TOKEN = os.getenv("DISCORD_TOKEN")
 SPREADSHEET_NAME = "GCN_Stats"
 ALLOWED_CHANNEL_ID = 1435544801431781549  # Channel-ID (#spiel-statistik), wo der Bot auf Links reagieren soll
 
-# ---- GOOGLE SHEET SETUP (robuste Version) ---- #
+# ---- GOOGLE SHEET SETUP (Railway fix for real newlines) ---- #
 import os, json, gspread
 from google.oauth2.service_account import Credentials
 
@@ -24,10 +24,10 @@ print("🚀 DEBUG: Länge GOOGLE_CREDS:", len(raw_creds or "0"))
 scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
 
 try:
-    # 🔧 Behandle alle möglichen Escape-Varianten
-    fixed_creds = raw_creds.replace('\\\\n', '\\n').replace('\\n', '\n')
-    google_creds = json.loads(fixed_creds)
+    # 🧩 Falls echte Zeilenumbrüche im Key sind → zu \n umwandeln
+    fixed_creds = raw_creds.replace("\n", "\\n")
 
+    google_creds = json.loads(fixed_creds)
     creds = Credentials.from_service_account_info(google_creds, scopes=scope)
     client = gspread.authorize(creds)
     sheet = client.open(SPREADSHEET_NAME).sheet1
