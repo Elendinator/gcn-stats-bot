@@ -44,8 +44,14 @@ except Exception as e:
     print("❌ Zugriff auf Google Sheets fehlgeschlagen:", e)
 
 # ---- DISCORD BOT SETUP ---- #
+import discord
+from discord.ext import commands
+
 intents = discord.Intents.default()
 intents.message_content = True
+intents.members = True  # <-- nötig für Rollen & Member Events
+intents.presences = True  # <-- falls du Online-Status brauchst
+
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # ---- STATISTIKAUSLESUNG ---- #
