@@ -13,26 +13,35 @@ SPREADSHEET_NAME = "GCN_Stats"
 ALLOWED_CHANNEL_ID = 1435544801431781549  # Channel-ID (#spiel-statistik), wo der Bot auf Links reagieren soll
 
 # ---- GOOGLE SHEET SETUP ---- #
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-import os, json
-from oauth2client.service_account import ServiceAccountCredentials
+import os
+import json
+import gspread
+from google.oauth2.service_account import Credentials
 
+# ---- Debug-Ausgaben ---- #
 print("🚀 DEBUG: DISCORD_TOKEN gefunden:", bool(TOKEN))
 print("🚀 DEBUG: GOOGLE_CREDS vorhanden:", bool(os.getenv("GOOGLE_CREDS")))
 print("🚀 DEBUG: Länge GOOGLE_CREDS:", len(os.getenv("GOOGLE_CREDS") or "0"))
-google_creds = json.loads(os.getenv("GOOGLE_CREDS"))
-creds = ServiceAccountCredentials.from_json_keyfile_dict(google_creds, scope)
-client = gspread.authorize(creds)
-sheet = client.open(SPREADSHEET_NAME).sheet1
 
-print("🔍 Teste Google Sheets Zugriff...")
+# ---- Google Credentials laden ---- #
+scope = [
+    "https://spreadsheets.google.com/feeds",
+    "https://www.googleapis.com/auth/drive"
+]
 
 try:
-    # Lese den Wert aus Zelle A1
+    google_creds = json.loads(os.getenv("GOOGLE_CREDS"))
+    creds = Credentials.from_service_account_info(google_creds, scopes=scope)
+    client = gspread.authorize(creds)
+    sheet = client.open(SPREADSHEET_NAME).sheet1
+    print("🔍 Teste Google Sheets Zugriff...")
+
+    # Test: Lese Zelle A1
     test_value = sheet.cell(1, 1).value
     print("✅ Erfolgreich verbunden! Zelle A1:", test_value)
+
 except Exception as e:
-    print("❌ Zugriff fehlgeschlagen:", e)
+    print("❌ Zugriff auf Google Sheets fehlgeschlagen:", e)
 
 # ---- DISCORD BOT SETUP ---- #
 intents = discord.Intents.default()
