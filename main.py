@@ -170,27 +170,53 @@ async def fetch_stats(ctx):
     except Exception as e:
         return await ctx.send(f"❌ Fehler beim Auslesen der Matchdaten: {e}")
 
-    # 🧩 Teamtabellen auslesen
-    tables = soup.select("table")
-    team_table = tables[0] if team_color == "blau" else tables[1]
-    rows = team_table.select("tr")[1:]
+        # 🧩 Teamtabellen auslesen (robuste Variante)
+    team_tables = soup.select("div.team-table")
+    if not team_tables:
+        return await ctx.send("❌ Keine Teamtabellen auf der Seite gefunden. Bitte prüfe den Link.")
+
+    # Teamnamen extrahieren
+    all_team_names = [t.text.strip() for t in soup.select(".team-name")]
+    if len(all_team_names) < 2:
+        all_team_names = ["Team Blau", "Team Rot"]
+
+    # Teamzuordnung
+    if team_color == "blau":
+        team_index = 0
+        our_team_name = all_team_names[0]
+        enemy_team_name = all_team_names[1]
+    else:
+        team_index = 1
+        our_team_name = all_team_names[1]
+        enemy_team_name = all_team_names[0]
+
+    try:
+        team_table = team_tables[team_index]
+        rows = team_table.select("tbody tr")
+    except Exception as e:
+        return await ctx.send(f"❌ Fehler beim Lesen der Teamdaten: {e}")
+
+    if not rows:
+        return await ctx.send("❌ Konnte keine Spielerzeilen finden — möglicherweise wurde das Match nicht korrekt geladen.")
 
     data_to_write = []
     for row in rows:
         cols = [c.text.strip() for c in row.select("td")]
-        if len(cols) < 6:
+        if len(cols) < 5:
             continue
+
         player = cols[0]
         kills = cols[1]
         deaths = cols[2]
         kd = cols[3]
         killstreak = cols[4]
+
         data_to_write.append([
             datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             match_id,
-            teams[0] if team_color == "blau" else teams[1],
+            our_team_name,
             team_color,
-            teams[1] if team_color == "blau" else teams[0],
+            enemy_team_name,
             winner,
             duration,
             player,
