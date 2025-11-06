@@ -12,27 +12,25 @@ TOKEN = os.getenv("DISCORD_TOKEN")
 SPREADSHEET_NAME = "GCN_Stats"
 ALLOWED_CHANNEL_ID = 1435544801431781549  # Channel-ID (#spiel-statistik), wo der Bot auf Links reagieren soll
 
-# ---- GOOGLE SHEET SETUP ---- #
+# ---- GOOGLE SHEET SETUP (modern & robust) ---- #
 import os, json, gspread
-from oauth2client.service_account import ServiceAccountCredentials
-
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+from google.oauth2.service_account import Credentials
 
 print("🚀 DEBUG: DISCORD_TOKEN gefunden:", bool(TOKEN))
 print("🚀 DEBUG: GOOGLE_CREDS vorhanden:", bool(os.getenv("GOOGLE_CREDS")))
-
 raw_creds = os.getenv("GOOGLE_CREDS")
 print("🚀 DEBUG: Länge GOOGLE_CREDS:", len(raw_creds or "0"))
 
+scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+
 try:
-    # 🧩 Versucht beides: falls Railway die Backslashes entfernt hat
+    # 🧩 Automatische Formatkorrektur für \n oder echte Zeilenumbrüche
     if "\\n" in raw_creds:
         google_creds = json.loads(raw_creds)
     else:
         google_creds = json.loads(raw_creds.replace("\n", "\\n"))
-    
-    # ✅ Lade ServiceAccountCredentials
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(google_creds, scope)
+
+    creds = Credentials.from_service_account_info(google_creds, scopes=scope)
     client = gspread.authorize(creds)
     sheet = client.open(SPREADSHEET_NAME).sheet1
 
@@ -43,10 +41,6 @@ try:
 except Exception as e:
     print("❌ Zugriff auf Google Sheets fehlgeschlagen:", e)
 
-# ---- Debug-Ausgaben ---- #
-print("🚀 DEBUG: DISCORD_TOKEN gefunden:", bool(TOKEN))
-print("🚀 DEBUG: GOOGLE_CREDS vorhanden:", bool(os.getenv("GOOGLE_CREDS")))
-print("🚀 DEBUG: Länge GOOGLE_CREDS:", len(os.getenv("GOOGLE_CREDS") or "0"))
 
 # ---- Google Credentials laden ---- #
 scope = [
