@@ -131,78 +131,75 @@ intents.presences = True  # <-- falls du Online-Status brauchst
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # ---- DISCORD BEFEHL ---- #
+
+import csv
+import io
+
 @bot.command()
 @commands.has_any_role(1433041166135201882, 1433041166135201887)
 async def stats(ctx):
     await ctx.send("📎 Bitte sende den Link zur Spielstatistik (z. B. https://stats.hll-pnx.de/games/560)")
-    
+
     def check_link(m):
         return m.author == ctx.author and m.channel == ctx.channel
 
+    # --- Warte auf Link ---
     link_msg = await bot.wait_for("message", check=check_link)
-    match_url = link_msg.content.strip()
+    user_link = link_msg.content.strip()
 
-    # ---- API Abruf ---- #
-    try:
-        api_url = get_api_url_from_link(match_url)
-        response = requests.get(api_url)
-        response.raise_for_status()
-        data = response.json()
-        await ctx.send(f"✅ API erfolgreich abgerufen: {api_url}")
-        print("✅ API erfolgreich abgerufen:", api_url)
-    except Exception as e:
-        await ctx.send(f"❌ Fehler beim Abrufen der Matchdaten: {e}")
-        print("❌ Fehler:", e)
-        return
-
-    # ---- Farbe abfragen ---- #
+    # --- Frage Teamfarbe ab ---
     await ctx.send("🎨 Welche Farbe hatte euer Team? (rot oder blau)")
+    color_msg = await bot.wait_for("message", check=check_link)
+    team_color = color_msg.content.strip().lower()
 
-    def check_color(m):
-        return m.author == ctx.author and m.channel == ctx.channel and m.content.lower() in ["rot", "blau"]
+    await ctx.send("⏳ Verarbeite Matchdaten...")
 
-    color_msg = await bot.wait_for("message", check=check_color)
-    team_color = color_msg.content.lower()
-
-    # ---- Matchdaten verarbeiten ---- #
     try:
-        await ctx.send("⏳ Verarbeite Matchdaten...")
-        data = await parse_match_page(match_url, team_color)
+        # Match-ID extrahieren
+        import re
+        match = re.search(r"/games/(\d+)", user_link)
+        if not match:
+            await ctx.send("❌ Kein gültiger Match-Link gefunden.")
+            return
 
-        for p in data["players"]:
-            sheet.append_row([
-                datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                data["team"],
-                team_color,
-                p["player"],
-                p["kills"],
-                p["deaths"],
-                p["kd"],
-                p["killstreak"],
-                data["winner"],
-                data["duration"],
-                match_url
-            ])
+        match_id = match.group(1)
+        csv_url = f"https://stats.hll-pnx.de/export_game_csv/{match_id}"
 
+        # CSV laden
+        response = requests.get(csv_url)
+        response.raise_for_status()
+
+        csv_content = response.content.decode("utf-8")
+        reader = csv.reader(io.StringIO(csv_content))
+        rows = list(reader)
+
+        print("📄 CSV geladen, Spalten:", rows[0])
+
+        # In Google Sheet schreiben
+        header = rows[0]
+        data = rows[1:]
+
+        sheet.clear()
+        sheet.append_row(header)
+        for row in data:
+            sheet.append_row(row)
+
+        # Embed-Antwort im Discord
+        import discord
         embed = discord.Embed(
-            title=f"📊 Matchauswertung – {data['team']}",
-            description=f"**Gewinner:** {data['winner']}\n**Dauer:** {data['duration']}\n[📎 Vollständige Statistik]({match_url})",
-            color=discord.Color.blue() if team_color == "blau" else discord.Color.red()
+            title="📊 Matchdaten eingetragen",
+            description=f"Spiel erfolgreich verarbeitet.\n[🔗 Zur Statistik]({user_link})",
+            color=discord.Color.blue(),
         )
-
-        top3 = sorted(data["players"], key=lambda x: float(x['kills']), reverse=True)[:3]
-        for i, player in enumerate(top3, start=1):
-            embed.add_field(
-                name=f"#{i} {player['player']}",
-                value=f"💀 {player['kills']} | ☠️ {player['deaths']} | 🎯 {player['kd']} | 🔥 {player['killstreak']}",
-                inline=False
-            )
+        embed.add_field(name="Teamfarbe", value=team_color.capitalize(), inline=True)
+        embed.add_field(name="Spieler gespeichert", value=str(len(data)), inline=True)
+        embed.set_footer(text="GCN StatsBot")
 
         await ctx.send(embed=embed)
 
     except Exception as e:
-        await ctx.send(f"❌ Fehler beim Verarbeiten: {e}")
-
+        await ctx.send(f"❌ Fehler beim Verarbeiten der Daten: `{e}`")
+        print("❌ Fehler:", e)
 
 
 bot.run(TOKEN)
