@@ -29,7 +29,7 @@ def get_api_url_from_link(user_url: str):
     if not match:
         raise ValueError("❌ Keine Match-ID im Link gefunden.")
     match_id = match.group(1)
-    api_url = f"{base_url}/api/game/{match_id}"
+    api_url = f"{base_url}/get_map_scoreboard?map_id={match_id}"
     return api_url
 
 
